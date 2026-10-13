@@ -41,7 +41,7 @@ class AuditService implements IAuditService {
     actorId?: string;
     startDate?: Date;
     endDate?: Date;
-  }): Promise<AuditEvent[]> {
+  } = {}): Promise<AuditEvent[]> {
     return this.inMemoryEvents.filter((evt) => {
       if (filter.resource && evt.resource !== filter.resource) return false;
       if (filter.resourceId && evt.resourceId !== filter.resourceId) return false;

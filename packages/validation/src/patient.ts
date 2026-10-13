@@ -166,6 +166,9 @@ export const updatePatientSchema = z.object({
   religion: z.string().trim().optional(),
   occupation: z.string().trim().optional(),
   status: patientStatusSchema.optional(),
+  contacts: z.array(patientContactInputSchema).optional(),
+  addresses: z.array(patientAddressInputSchema).optional(),
+  emergencyContacts: z.array(emergencyContactInputSchema).optional(),
 });
 
 export const patientSearchSchema = paginationQuerySchema.extend({

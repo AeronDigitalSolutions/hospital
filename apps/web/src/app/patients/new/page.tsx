@@ -11,6 +11,7 @@ import {
   Textarea,
   FormField,
   Badge,
+  Modal,
 } from '@chikitsaalye/ui';
 import {
   UserPlus,
@@ -25,6 +26,11 @@ import {
   Phone,
   Home,
   AlertCircle,
+  Printer,
+  Copy,
+  ExternalLink,
+  Check,
+  ArrowRight,
 } from 'lucide-react';
 import { ProtectedRoute } from '../../../components/ProtectedRoute';
 
@@ -33,6 +39,9 @@ export default function NewPatientRegistrationPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [duplicateWarning, setDuplicateWarning] = useState<any[]>([]);
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [registeredPatient, setRegisteredPatient] = useState<any | null>(null);
+  const [copiedUhid, setCopiedUhid] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -100,8 +109,58 @@ export default function NewPatientRegistrationPage() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const resetForm = () => {
+    setRegisteredPatient(null);
+    setDuplicateWarning([]);
+    setShowDuplicateModal(false);
+    setErrorMessage(null);
+    setFormData({
+      firstName: '',
+      middleName: '',
+      lastName: '',
+      gender: 'MALE',
+      dateOfBirth: '1990-01-01',
+      isEstimatedDob: false,
+      bloodGroup: 'UNKNOWN',
+      maritalStatus: 'SINGLE',
+      nationality: 'Indian',
+      religion: '',
+      occupation: '',
+      abhaNumber: '',
+      nationalId: '',
+      phone: '',
+      email: '',
+      addressLine1: '',
+      city: 'Saifai',
+      district: 'Etawah',
+      state: 'Uttar Pradesh',
+      postalCode: '206130',
+      emergencyName: '',
+      emergencyRelationship: 'Spouse',
+      emergencyPhone: '',
+      allergen: '',
+      allergySeverity: 'MODERATE',
+      allergyReaction: '',
+      conditionName: '',
+    });
+  };
+
+  const handleCopyUhid = (uhid: string) => {
+    navigator.clipboard.writeText(uhid);
+    setCopiedUhid(true);
+    setTimeout(() => setCopiedUhid(false), 2000);
+  };
+
+  const handleSubmit = async (e?: React.FormEvent, forceSubmit = false) => {
+    if (e) e.preventDefault();
+
+    // If duplicate candidates detected and not explicitly forced, trigger modal review
+    if (duplicateWarning.length > 0 && !forceSubmit) {
+      setShowDuplicateModal(true);
+      return;
+    }
+
+    setShowDuplicateModal(false);
     setIsSubmitting(true);
     setErrorMessage(null);
 
@@ -206,7 +265,7 @@ export default function NewPatientRegistrationPage() {
 
       const json = await res.json();
       if (json.success) {
-        router.push(`/patients/${json.data.id}`);
+        setRegisteredPatient(json.data);
       } else {
         const errorDetail = json.error?.details?.map((d: any) => d.message).join(', ');
         setErrorMessage(errorDetail || json.error?.message || 'Failed to register patient');
@@ -218,24 +277,254 @@ export default function NewPatientRegistrationPage() {
     }
   };
 
+  // If patient has been successfully registered, render Confirmation Screen & Printable Slip
+  if (registeredPatient) {
+    return (
+      <ProtectedRoute requiredPermissions={['PATIENT.CREATE']}>
+        <PageContainer
+          title="Registration Confirmation"
+          subtitle="Canonical Master Patient Index record established with generated institutional UHID"
+          breadcrumbs={[
+            { label: 'Patients', href: '/patients' },
+            { label: 'Registration Confirmation', current: true },
+          ]}
+          actions={
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.print()}
+              >
+                <Printer className="w-3.5 h-3.5 mr-1.5" />
+                Print Registration Slip
+              </Button>
+              <Button variant="secondary" size="sm" onClick={resetForm}>
+                <UserPlus className="w-3.5 h-3.5 mr-1.5" />
+                Register Another Patient
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => router.push(`/patients/${registeredPatient.id}`)}
+              >
+                Open Patient 360
+                <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-6 max-w-4xl mx-auto">
+            {/* Banner */}
+            <div className="p-4 bg-emerald-50 border border-emerald-300 rounded-lg flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <CheckCircle2 className="w-6 h-6 text-emerald-600 flex-shrink-0" />
+                <div>
+                  <h3 className="text-sm font-bold text-emerald-900">
+                    Patient Registered Successfully
+                  </h3>
+                  <p className="text-xs text-emerald-700">
+                    Canonical UHID issued and patient master indexed across all departments.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleCopyUhid(registeredPatient.uhid)}
+                  className="bg-white"
+                >
+                  {copiedUhid ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 mr-1 text-emerald-600" />
+                      Copied!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5 mr-1" />
+                      Copy UHID
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            {/* Printable Registration Slip / Card */}
+            <div
+              id="printable-slip"
+              className="bg-white border-2 border-slate-300 rounded-xl p-8 shadow-sm print:border-none print:shadow-none print:p-0 print:m-0 space-y-6"
+            >
+              {/* Slip Header */}
+              <div className="text-center pb-4 border-b-2 border-slate-200">
+                <div className="text-xs uppercase font-extrabold tracking-wider text-slate-500">
+                  Government of Uttar Pradesh
+                </div>
+                <h1 className="text-xl font-black text-slate-900 tracking-tight">
+                  Uttar Pradesh University of Medical Sciences (UPUMS)
+                </h1>
+                <p className="text-xs text-slate-600">
+                  Saifai, Etawah, Uttar Pradesh - 206130 • Phone: 05688-276563
+                </p>
+                <div className="inline-block mt-2 px-3 py-0.5 bg-blue-100 text-blue-900 text-[11px] font-bold rounded-full uppercase tracking-wider">
+                  Central Patient Registration Slip
+                </div>
+              </div>
+
+              {/* Barcode & Canonical UHID Block */}
+              <div className="flex flex-col sm:flex-row items-center justify-between bg-slate-50 p-4 rounded-lg border border-slate-200">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">
+                    Institutional UHID
+                  </span>
+                  <div className="text-2xl font-mono font-black text-blue-900 tracking-wider">
+                    {registeredPatient.uhid}
+                  </div>
+                  <div className="text-[11px] text-slate-500">
+                    Registration Date: {new Date(registeredPatient.createdAt).toLocaleString()}
+                  </div>
+                </div>
+
+                <div className="mt-3 sm:mt-0 text-center">
+                  {/* Barcode Graphic Simulation */}
+                  <div className="font-mono text-2xl tracking-[0.25em] text-slate-800 select-none">
+                    ||||| |||| | |||||||| |||| ||| |||||||
+                  </div>
+                  <div className="text-[10px] font-mono text-slate-500 tracking-widest mt-0.5">
+                    *{registeredPatient.uhid}*
+                  </div>
+                </div>
+              </div>
+
+              {/* Patient Core Details Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6 text-xs text-slate-800">
+                <div>
+                  <span className="block text-slate-500 font-semibold">Patient Name</span>
+                  <span className="text-sm font-bold text-slate-900">
+                    {registeredPatient.fullName}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="block text-slate-500 font-semibold">Age / Gender</span>
+                  <span className="font-bold">
+                    {registeredPatient.ageYears} Years / {registeredPatient.gender}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="block text-slate-500 font-semibold">Date of Birth</span>
+                  <span>{new Date(registeredPatient.dateOfBirth).toLocaleDateString()}</span>
+                </div>
+
+                <div>
+                  <span className="block text-slate-500 font-semibold">Blood Group</span>
+                  <span className="font-bold text-rose-700">
+                    {registeredPatient.bloodGroup?.replace('_', ' ') || 'Unknown'}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="block text-slate-500 font-semibold">Contact Mobile</span>
+                  <span className="font-mono">{registeredPatient.primaryPhone || '—'}</span>
+                </div>
+
+                <div>
+                  <span className="block text-slate-500 font-semibold">Marital Status</span>
+                  <span>{registeredPatient.maritalStatus || 'Single'}</span>
+                </div>
+
+                <div className="sm:col-span-2">
+                  <span className="block text-slate-500 font-semibold">Residential Address</span>
+                  <span>{registeredPatient.primaryAddress || 'Saifai, Etawah, UP'}</span>
+                </div>
+
+                <div>
+                  <span className="block text-slate-500 font-semibold">Emergency Contact</span>
+                  <span>
+                    {registeredPatient.emergencyContacts?.[0]?.name
+                      ? `${registeredPatient.emergencyContacts[0].name} (${registeredPatient.emergencyContacts[0].relationship}) - ${registeredPatient.emergencyContacts[0].phone}`
+                      : '—'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Linked External Identifiers */}
+              {registeredPatient.identifiers && registeredPatient.identifiers.length > 0 && (
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded text-xs space-y-1">
+                  <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
+                    Verified Linked Identifiers
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {registeredPatient.identifiers.map((ident: any, i: number) => (
+                      <span
+                        key={i}
+                        className="bg-white border border-slate-300 px-2 py-0.5 rounded text-[11px] font-mono"
+                      >
+                        {ident.type}: <strong>{ident.value}</strong> ({ident.issuingAuthority || 'Institutional'})
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Footer Notice & Signature */}
+              <div className="pt-6 border-t border-dashed border-slate-300 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-slate-500">
+                <div>
+                  <p>• Please bring this slip for all OPD consultations and investigations.</p>
+                  <p>• Emergency Triage: Room 101 • Helpline: 1800-180-5145</p>
+                </div>
+                <div className="text-right">
+                  <div className="h-10 border-b border-slate-400 w-44 mb-1"></div>
+                  <span className="font-semibold text-slate-700">Authorized Registration Officer</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Action Buttons */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-200">
+              <Button variant="outline" size="md" onClick={() => router.push('/patients')}>
+                <ArrowLeft className="w-4 h-4 mr-1.5" />
+                Back to Patient Directory
+              </Button>
+              <div className="flex items-center space-x-3">
+                <Button variant="secondary" size="md" onClick={resetForm}>
+                  <UserPlus className="w-4 h-4 mr-1.5" />
+                  Register Another Patient
+                </Button>
+                <Button
+                  variant="primary"
+                  size="md"
+                  onClick={() => router.push(`/patients/${registeredPatient.id}`)}
+                >
+                  Go to Patient 360 Cockpit
+                  <ArrowRight className="w-4 h-4 ml-1.5" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </PageContainer>
+      </ProtectedRoute>
+    );
+  }
+
   return (
     <ProtectedRoute requiredPermissions={['PATIENT.CREATE']}>
       <PageContainer
-      title="Register Canonical Patient"
-      subtitle="Issue new institutional UHID and establish Master Patient Index record"
-      breadcrumbs={[
-        { label: 'Patients', href: '/patients' },
-        { label: 'New Patient Registration', current: true },
-      ]}
-      actions={
-        <div className="flex items-center space-x-2">
-          <Button variant="outline" size="sm" onClick={() => router.back()}>
-            <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
-            Back to Directory
-          </Button>
-        </div>
-      }
-    >
+        title="Register Canonical Patient"
+        subtitle="Issue new institutional UHID and establish Master Patient Index record"
+        breadcrumbs={[
+          { label: 'Patients', href: '/patients' },
+          { label: 'New Patient Registration', current: true },
+        ]}
+        actions={
+          <div className="flex items-center space-x-2">
+            <Button variant="outline" size="sm" onClick={() => router.back()}>
+              <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
+              Back to Directory
+            </Button>
+          </div>
+        }
+      >
       <form onSubmit={handleSubmit} className="space-y-6 max-w-5xl">
         {errorMessage && (
           <AlertBanner
@@ -548,6 +837,97 @@ export default function NewPatientRegistrationPage() {
           </Button>
         </div>
       </form>
+
+      {/* Proactive Duplicate Prevention Modal */}
+      <Modal
+        isOpen={showDuplicateModal}
+        onClose={() => setShowDuplicateModal(false)}
+        title="Possible Duplicate Patient Record Detected"
+        description="The Master Patient Index found one or more matching records based on contact phone, name, DOB, or external identifier."
+        footer={
+          <div className="flex items-center justify-between w-full">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowDuplicateModal(false)}
+            >
+              Cancel & Revise Details
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={(e) => handleSubmit(e, true)}
+              isLoading={isSubmitting}
+            >
+              Continue Registration (Create New UHID)
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <div className="p-3 bg-amber-50 border border-amber-300 rounded text-xs text-amber-900 flex items-start space-x-2">
+            <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <strong>Duplicate Prevention Check:</strong> Creating another record will cause clinical data fragmentation. Please review the candidates below to verify if the patient is already registered:
+            </div>
+          </div>
+
+          <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+            {duplicateWarning.map((candidate: any, idx: number) => (
+              <div
+                key={idx}
+                className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-2 hover:border-slate-300 transition-colors"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <span className="font-mono font-bold text-blue-800 bg-blue-100 px-2 py-0.5 rounded border border-blue-200">
+                      {candidate.patient.uhid}
+                    </span>
+                    <span className="font-bold text-slate-900">{candidate.patient.fullName}</span>
+                    <Badge variant={candidate.confidenceScore >= 90 ? 'rose' : 'amber'}>
+                      {candidate.confidenceLevel} ({candidate.confidenceScore}%)
+                    </Badge>
+                  </div>
+
+                  <a
+                    href={`/patients/${candidate.patient.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center space-x-1 font-bold text-blue-600 hover:text-blue-800 hover:underline"
+                  >
+                    <span>View Patient</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-slate-600">
+                  <div>
+                    <strong>Age/Gender:</strong> {candidate.patient.ageYears} yrs • {candidate.patient.gender}
+                  </div>
+                  <div>
+                    <strong>Phone:</strong> {candidate.patient.primaryPhone || '—'}
+                  </div>
+                  <div>
+                    <strong>DOB:</strong> {new Date(candidate.patient.dateOfBirth).toLocaleDateString()}
+                  </div>
+                  <div>
+                    <strong>District:</strong> {candidate.patient.primaryAddress || '—'}
+                  </div>
+                </div>
+
+                {candidate.matchedSignals && candidate.matchedSignals.length > 0 && (
+                  <div className="pt-1.5 border-t border-slate-200 text-[11px] text-slate-500">
+                    <span className="font-semibold text-slate-700">Matched Signals: </span>
+                    {candidate.matchedSignals
+                      .map((s: any) => `${s.field}: ${s.value}`)
+                      .join(' • ')}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </Modal>
     </PageContainer>
     </ProtectedRoute>
   );

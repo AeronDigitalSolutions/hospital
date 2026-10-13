@@ -15,7 +15,7 @@ export async function listPatients(req: Request, res: Response, next: NextFuncti
       return sendPaginated(req, res, { items, total: items.length, page: 1, pageSize: 20, totalPages: 1 });
     }
 
-    const result = await patientsService.searchPatients(req.query as any);
+    const result = await patientsService.searchPatients(req.query as any, req.auth);
     return sendPaginated(req, res, result);
   } catch (err) {
     return next(err);
@@ -64,7 +64,7 @@ export async function updatePatient(req: Request, res: Response, next: NextFunct
 
 export async function checkDuplicates(req: Request, res: Response, next: NextFunction) {
   try {
-    const duplicates = await patientsService.checkDuplicates(req.body);
+    const duplicates = await patientsService.checkDuplicates(req.body, req.auth);
     return sendSuccess(req, res, {
       count: duplicates.length,
       hasDuplicates: duplicates.length > 0,
@@ -92,6 +92,16 @@ export async function getPatient360(req: Request, res: Response, next: NextFunct
     }
 
     return sendSuccess(req, res, patient360);
+  } catch (err) {
+    return next(err);
+  }
+}
+
+export async function getPatientTimeline(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const timeline = await patientsService.getPatientTimeline(id, req.auth);
+    return sendSuccess(req, res, timeline);
   } catch (err) {
     return next(err);
   }

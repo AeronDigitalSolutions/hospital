@@ -10,6 +10,7 @@ import type {
   PatientSummaryDto,
   PatientDetailDto,
   Patient360Dto,
+  PatientTimelineEventDto,
   DuplicatePatientCandidate,
   DuplicateMatchSignal,
   PaginatedResult,
@@ -20,11 +21,12 @@ import { auditService } from '../../services/audit.service.js';
 
 export interface IPatientsService {
   createPatient(data: CreatePatientInput, auth?: AuthContext): Promise<PatientDetailDto>;
-  searchPatients(query: PatientSearchQuery): Promise<PaginatedResult<PatientSummaryDto>>;
+  searchPatients(query: PatientSearchQuery, auth?: AuthContext): Promise<PaginatedResult<PatientSummaryDto>>;
   getPatientById(idOrUhid: string, auth?: AuthContext): Promise<PatientDetailDto>;
   updatePatient(id: string, data: UpdatePatientInput, auth?: AuthContext): Promise<PatientDetailDto>;
-  checkDuplicates(input: CheckDuplicateInput): Promise<DuplicatePatientCandidate[]>;
+  checkDuplicates(input: CheckDuplicateInput, auth?: AuthContext): Promise<DuplicatePatientCandidate[]>;
   getPatient360(idOrUhid: string, auth?: AuthContext): Promise<Patient360Dto>;
+  getPatientTimeline(idOrUhid: string, auth?: AuthContext): Promise<PatientTimelineEventDto[]>;
 }
 
 export class PatientsService implements IPatientsService {
@@ -83,6 +85,7 @@ export class PatientsService implements IPatientsService {
     const summary = this.mapToSummary(p);
     return {
       ...summary,
+      createdById: p.createdById || undefined,
       maritalStatus: p.maritalStatus || undefined,
       nationality: p.nationality || 'Indian',
       religion: p.religion || undefined,
@@ -457,14 +460,14 @@ export class PatientsService implements IPatientsService {
     this.inMemoryPatients.set(record.id, record);
     this.inMemoryPatients.set(record.uhid, record);
 
-    // Audit Event
+    // Audit Event - Patient Registration
     await auditService.logEvent({
       actor: {
         id: auth?.userId || 'system',
         type: auth ? 'USER' : 'SYSTEM',
         department: auth?.department || 'REGISTRATION',
       },
-      action: 'PATIENT_CREATED',
+      action: 'PATIENT_REGISTERED',
       resource: 'Patient',
       resourceId: record.id,
       requestId: auth?.requestId || `req_${Date.now()}`,
@@ -475,10 +478,34 @@ export class PatientsService implements IPatientsService {
       },
     });
 
+    // Audit Event - External Identifiers Added
+    for (const ident of identifiers) {
+      if (ident.type !== 'UHID') {
+        await auditService.logEvent({
+          actor: {
+            id: auth?.userId || 'system',
+            type: auth ? 'USER' : 'SYSTEM',
+            department: auth?.department || 'REGISTRATION',
+          },
+          action: 'PATIENT_IDENTIFIER_ADDED',
+          resource: 'PatientIdentifier',
+          resourceId: ident.id,
+          requestId: auth?.requestId || `req_${Date.now()}`,
+          metadata: {
+            patientId: record.id,
+            uhid: record.uhid,
+            type: ident.type,
+            value: ident.value,
+            issuingAuthority: ident.issuingAuthority,
+          },
+        });
+      }
+    }
+
     return this.mapToDetail(record);
   }
 
-  async searchPatients(query: PatientSearchQuery): Promise<PaginatedResult<PatientSummaryDto>> {
+  async searchPatients(query: PatientSearchQuery, auth?: AuthContext): Promise<PaginatedResult<PatientSummaryDto>> {
     const page = Math.max(1, Number(query.page) || 1);
     const pageSize = Math.min(100, Math.max(1, Number(query.pageSize) || 20));
     const dbStatus = await checkDatabaseConnection();
@@ -542,6 +569,33 @@ export class PatientsService implements IPatientsService {
           prisma.patient.count({ where }),
         ]);
 
+        const hasSearchQuery = Boolean(
+          query.search || query.uhid || query.name || query.phone || query.identifier || query.gender || query.status
+        );
+        if (hasSearchQuery) {
+          await auditService.logEvent({
+            actor: {
+              id: auth?.userId || 'system',
+              type: auth ? 'USER' : 'SYSTEM',
+              department: auth?.department || undefined,
+            },
+            action: 'PATIENT_SEARCHED',
+            resource: 'Patient',
+            resourceId: 'search_directory',
+            requestId: auth?.requestId || `req_${Date.now()}`,
+            metadata: {
+              criteria: {
+                search: query.search,
+                uhid: query.uhid,
+                name: query.name,
+                phone: query.phone,
+                identifier: query.identifier,
+              },
+              resultCount: total,
+            },
+          });
+        }
+
         return {
           items: items.map((p) => this.mapToSummary(p)),
           total,
@@ -597,6 +651,33 @@ export class PatientsService implements IPatientsService {
     const total = all.length;
     const start = (page - 1) * pageSize;
     const paginated = all.slice(start, start + pageSize);
+
+    const hasSearchQuery = Boolean(
+      query.search || query.uhid || query.name || query.phone || query.identifier || query.gender || query.status
+    );
+    if (hasSearchQuery) {
+      await auditService.logEvent({
+        actor: {
+          id: auth?.userId || 'system',
+          type: auth ? 'USER' : 'SYSTEM',
+          department: auth?.department || undefined,
+        },
+        action: 'PATIENT_SEARCHED',
+        resource: 'Patient',
+        resourceId: 'search_directory',
+        requestId: auth?.requestId || `req_${Date.now()}`,
+        metadata: {
+          criteria: {
+            search: query.search,
+            uhid: query.uhid,
+            name: query.name,
+            phone: query.phone,
+            identifier: query.identifier,
+          },
+          resultCount: total,
+        },
+      });
+    }
 
     return {
       items: paginated.map((p) => this.mapToSummary(p)),
@@ -688,6 +769,60 @@ export class PatientsService implements IPatientsService {
       updatedData.dateOfBirth = new Date(data.dateOfBirth);
     }
 
+    if (data.emergencyContacts) {
+      updatedData.emergencyContacts = data.emergencyContacts.map((e) => ({
+        id: (e as any).id || crypto.randomUUID(),
+        name: e.name,
+        relationship: e.relationship,
+        phone: e.phone,
+        alternatePhone: e.alternatePhone,
+        email: e.email,
+        isPrimary: e.isPrimary,
+      }));
+
+      await auditService.logEvent({
+        actor: {
+          id: auth?.userId || 'system',
+          type: auth ? 'USER' : 'SYSTEM',
+          department: auth?.department || undefined,
+        },
+        action: 'EMERGENCY_CONTACT_UPDATED',
+        resource: 'EmergencyContact',
+        resourceId: patient.id,
+        requestId: auth?.requestId || `req_${Date.now()}`,
+        metadata: {
+          patientId: patient.id,
+          uhid: patient.uhid,
+          emergencyContactsCount: data.emergencyContacts.length,
+        },
+      });
+    }
+
+    if (data.contacts) {
+      updatedData.contacts = data.contacts.map((c) => ({
+        id: (c as any).id || crypto.randomUUID(),
+        type: c.type,
+        value: c.value,
+        isPrimary: c.isPrimary,
+        isVerified: false,
+      }));
+    }
+
+    if (data.addresses) {
+      updatedData.addresses = data.addresses.map((a) => ({
+        id: (a as any).id || crypto.randomUUID(),
+        type: a.type,
+        addressLine1: a.addressLine1,
+        addressLine2: a.addressLine2,
+        city: a.city,
+        district: a.district,
+        state: a.state,
+        postalCode: a.postalCode,
+        country: a.country,
+        isPrimary: a.isPrimary,
+      }));
+    }
+
     if (dbStatus.ok) {
       try {
         await prisma.patient.update({
@@ -732,7 +867,7 @@ export class PatientsService implements IPatientsService {
     return this.getPatientById(patient.id, auth);
   }
 
-  async checkDuplicates(input: CheckDuplicateInput): Promise<DuplicatePatientCandidate[]> {
+  async checkDuplicates(input: CheckDuplicateInput, auth?: AuthContext): Promise<DuplicatePatientCandidate[]> {
     const candidates: DuplicatePatientCandidate[] = [];
     const all = Array.from(new Set(this.inMemoryPatients.values())).filter((p) => !p.deletedAt);
 
@@ -799,7 +934,143 @@ export class PatientsService implements IPatientsService {
       }
     }
 
-    return candidates.sort((a, b) => b.confidenceScore - a.confidenceScore);
+    const sorted = candidates.sort((a, b) => b.confidenceScore - a.confidenceScore);
+
+    if (sorted.length > 0) {
+      await auditService.logEvent({
+        actor: {
+          id: auth?.userId || 'system',
+          type: auth ? 'USER' : 'SYSTEM',
+          department: auth?.department || undefined,
+        },
+        action: 'DUPLICATE_DETECTED',
+        resource: 'Patient',
+        resourceId: sorted[0]?.patient?.id || 'duplicate_check',
+        requestId: auth?.requestId || `req_${Date.now()}`,
+        metadata: {
+          candidateCount: sorted.length,
+          topMatchUhid: sorted[0]?.patient?.uhid,
+          topConfidence: sorted[0]?.confidenceScore,
+          matchedSignals: sorted[0]?.matchedSignals,
+        },
+      });
+    }
+
+    return sorted;
+  }
+
+  async getPatientTimeline(idOrUhid: string, auth?: AuthContext): Promise<PatientTimelineEventDto[]> {
+    const patient = await this.getPatientById(idOrUhid, auth);
+    const raw = this.inMemoryPatients.get(patient.id) || this.inMemoryPatients.get(patient.uhid);
+    const encounters = raw?.encounters || [];
+
+    const events: PatientTimelineEventDto[] = [];
+
+    // 1. Patient Registration Event
+    events.push({
+      id: `timeline-reg-${patient.id}`,
+      type: 'REGISTRATION',
+      category: 'ADMINISTRATIVE',
+      title: 'Canonical Patient Master Created',
+      description: `Institutional registration completed with UHID ${patient.uhid}. Demographics and emergency contact recorded.`,
+      timestamp: patient.createdAt,
+      actor: patient.createdById ? `Staff (${patient.createdById})` : 'Registration Desk',
+      status: 'COMPLETED',
+      metadata: {
+        uhid: patient.uhid,
+        gender: patient.gender,
+        ageYears: patient.ageYears,
+        primaryPhone: patient.primaryPhone,
+      },
+    });
+
+    // 2. External Identifiers Linked
+    for (const ident of patient.identifiers || []) {
+      if (ident.type !== 'UHID') {
+        events.push({
+          id: `timeline-ident-${ident.id}`,
+          type: 'REGISTRATION',
+          category: 'ADMINISTRATIVE',
+          title: `External Identifier Linked: ${ident.type}`,
+          description: `Identifier ${ident.value} (${ident.issuingAuthority || 'Institutional Authority'}) linked to Patient Master.`,
+          timestamp: patient.createdAt,
+          actor: 'Registration Desk',
+          status: 'ACTIVE',
+          metadata: { type: ident.type, value: ident.value },
+        });
+      }
+    }
+
+    // 3. Encounters
+    for (const enc of encounters) {
+      events.push({
+        id: `timeline-enc-${enc.id}`,
+        type: 'ENCOUNTER',
+        category: 'CLINICAL',
+        title: `${enc.type} Encounter Started (${enc.department || 'General'})`,
+        description: enc.reasonForVisit
+          ? `Reason: ${enc.reasonForVisit}. Status: ${enc.status}.`
+          : `Encounter #${enc.encounterNumber} in ${enc.department || 'Hospital'}.`,
+        timestamp: new Date(enc.startTime).toISOString(),
+        actor: enc.attendingDoctorId ? `Doctor (${enc.attendingDoctorId})` : 'Clinical Staff',
+        status: enc.status,
+        metadata: {
+          encounterId: enc.id,
+          encounterNumber: enc.encounterNumber,
+          type: enc.type,
+          priority: enc.priority,
+        },
+      });
+
+      if (enc.endTime) {
+        events.push({
+          id: `timeline-enc-close-${enc.id}`,
+          type: enc.type === 'IPD' ? 'DISCHARGE' : 'ENCOUNTER',
+          category: 'CLINICAL',
+          title: `${enc.type} Encounter Completed`,
+          description: `Encounter #${enc.encounterNumber} closed successfully.`,
+          timestamp: new Date(enc.endTime).toISOString(),
+          actor: 'Clinical Staff',
+          status: 'COMPLETED',
+          metadata: { encounterId: enc.id, encounterNumber: enc.encounterNumber },
+        });
+      }
+    }
+
+    // 4. Allergies
+    for (const al of patient.allergies || []) {
+      events.push({
+        id: `timeline-alg-${al.id}`,
+        type: 'DIAGNOSIS',
+        category: 'CLINICAL',
+        title: `Allergy Documented: ${al.allergen}`,
+        description: `Severity: ${al.severity}${al.reaction ? ` | Reaction: ${al.reaction}` : ''} | Status: ${al.status}`,
+        timestamp: al.recordedAt ? new Date(al.recordedAt).toISOString() : patient.createdAt,
+        actor: al.recordedById ? `Staff (${al.recordedById})` : 'Clinical Staff',
+        status: al.status,
+        metadata: { allergen: al.allergen, severity: al.severity },
+      });
+    }
+
+    // 5. Conditions
+    for (const c of patient.conditions || []) {
+      events.push({
+        id: `timeline-cond-${c.id}`,
+        type: 'DIAGNOSIS',
+        category: 'CLINICAL',
+        title: `Chronic Condition Documented: ${c.conditionName}`,
+        description: `Clinical Status: ${c.clinicalStatus} | Verification: ${c.verificationStatus}${c.conditionCode ? ` (${c.conditionCode})` : ''}`,
+        timestamp: c.recordedAt ? new Date(c.recordedAt).toISOString() : patient.createdAt,
+        actor: c.recordedById ? `Staff (${c.recordedById})` : 'Clinical Staff',
+        status: c.clinicalStatus,
+        metadata: { conditionName: c.conditionName, code: c.conditionCode },
+      });
+    }
+
+    // Sort strictly chronological descending (newest first)
+    events.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+    return events;
   }
 
   async getPatient360(idOrUhid: string, auth?: AuthContext): Promise<Patient360Dto> {
@@ -817,6 +1088,9 @@ export class PatientsService implements IPatientsService {
     const raw = this.inMemoryPatients.get(patient.id) || this.inMemoryPatients.get(patient.uhid);
     const encounters = raw?.encounters || [];
     const openEncounters = encounters.filter((e: any) => e.status === 'OPEN' || e.status === 'IN_PROGRESS');
+
+    // Generate timeline
+    const timeline = await this.getPatientTimeline(patient.id, auth);
 
     return {
       patient,
@@ -845,6 +1119,7 @@ export class PatientsService implements IPatientsService {
           reasonForVisit: e.reasonForVisit,
         })),
       },
+      timeline,
     };
   }
 

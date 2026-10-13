@@ -6,6 +6,7 @@ import {
   updatePatient,
   checkDuplicates,
   getPatient360,
+  getPatientTimeline,
 } from './patients.controller.js';
 import { idempotencyMiddleware } from '../../middleware/idempotency.js';
 import { validateBody, validateQuery } from '../../middleware/validate.js';
@@ -56,6 +57,9 @@ patientsRouter.post(
 
 // Patient 360 View (Requires PATIENT.READ or Patient Ownership)
 patientsRouter.get('/:id/360', authenticate(), requirePatientAccess(), getPatient360);
+
+// Patient Chronological Timeline (Requires PATIENT.READ or Patient Ownership)
+patientsRouter.get('/:id/timeline', authenticate(), requirePatientAccess(), getPatientTimeline);
 
 // Single Patient Lookup (Requires PATIENT.READ or Patient Ownership)
 patientsRouter.get('/:id', authenticate(), requirePatientAccess(), getPatientById);

@@ -21,7 +21,7 @@ export interface AuditEvent {
 
 export interface IAuditService {
   logEvent(event: Omit<AuditEvent, 'id' | 'timestamp'>): Promise<AuditEvent>;
-  queryEvents(filter: {
+  queryEvents(filter?: {
     resource?: string;
     resourceId?: string;
     actorId?: string;

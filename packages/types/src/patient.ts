@@ -174,6 +174,7 @@ export interface PatientSummaryDto {
 }
 
 export interface PatientDetailDto extends PatientSummaryDto {
+  createdById?: string;
   maritalStatus?: MaritalStatus;
   nationality: string;
   religion?: string;
@@ -204,6 +205,30 @@ export interface DuplicatePatientCandidate {
   matchedSignals: DuplicateMatchSignal[];
 }
 
+export type TimelineEventType =
+  | 'REGISTRATION'
+  | 'ENCOUNTER'
+  | 'DIAGNOSIS'
+  | 'ORDER'
+  | 'PRESCRIPTION'
+  | 'LAB_RESULT'
+  | 'RADIOLOGY_REPORT'
+  | 'PAYMENT'
+  | 'DISCHARGE'
+  | 'FOLLOW_UP';
+
+export interface PatientTimelineEventDto {
+  id: string;
+  timestamp: string;
+  type: TimelineEventType;
+  title: string;
+  description: string;
+  category: 'ADMINISTRATIVE' | 'CLINICAL' | 'DIAGNOSTIC' | 'FINANCIAL';
+  status?: string;
+  actor?: string;
+  metadata?: Record<string, unknown>;
+}
+
 export interface Patient360Dto {
   patient: PatientDetailDto;
   clinicalAlerts: {
@@ -231,4 +256,5 @@ export interface Patient360Dto {
       reasonForVisit: string;
     }>;
   };
+  timeline?: PatientTimelineEventDto[];
 }
