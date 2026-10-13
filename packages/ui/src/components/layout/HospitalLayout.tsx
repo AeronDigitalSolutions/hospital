@@ -8,17 +8,19 @@ export interface HospitalLayoutProps {
   children: React.ReactNode;
   headerProps?: Partial<HospitalHeaderProps>;
   currentPath?: string;
-  defaultSidebarOpen?: boolean;
+  defaultCollapsed?: boolean;
 }
 
 export const HospitalLayout: React.FC<HospitalLayoutProps> = ({
   children,
   headerProps,
   currentPath = '/',
-  defaultSidebarOpen = true,
+  defaultCollapsed = false,
 }) => {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(defaultSidebarOpen);
-  const [isCompact, setIsCompact] = useState(false);
+  // Desktop collapsed state (false = expanded with labels, true = collapsed icon dock)
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  // Mobile drawer state
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -26,11 +28,11 @@ export const HospitalLayout: React.FC<HospitalLayoutProps> = ({
       const mobile = window.innerWidth < 768;
       setIsMobile(mobile);
       if (mobile) {
-        setIsSidebarOpen(false);
+        setMobileDrawerOpen(false);
       }
     };
 
-    // Run initial screen check
+    // Run initial screen size check
     handleResize();
 
     window.addEventListener('resize', handleResize);
@@ -38,26 +40,30 @@ export const HospitalLayout: React.FC<HospitalLayoutProps> = ({
   }, []);
 
   const handleToggleSidebar = useCallback(() => {
-    setIsSidebarOpen((prev) => !prev);
+    if (isMobile) {
+      setMobileDrawerOpen((prev) => !prev);
+    } else {
+      setCollapsed((prev) => !prev);
+    }
+  }, [isMobile]);
+
+  const handleCloseMobileDrawer = useCallback(() => {
+    setMobileDrawerOpen(false);
   }, []);
 
-  const handleCloseSidebar = useCallback(() => {
-    setIsSidebarOpen(false);
-  }, []);
-
-  const handleToggleCompact = useCallback(() => {
-    setIsCompact((prev) => !prev);
+  const handleToggleCollapse = useCallback(() => {
+    setCollapsed((prev) => !prev);
   }, []);
 
   return (
     <div className="flex h-full w-full overflow-hidden bg-slate-50 text-slate-900 font-sans antialiased">
-      {/* Hospital Navigation Sidebar (supports responsive mobile drawer & desktop collapse) */}
+      {/* Hospital Navigation Sidebar (Full expanded mode, Collapsed icon dock, & Mobile drawer) */}
       <HospitalSidebar
-        isOpen={isSidebarOpen}
-        isCompact={isCompact}
+        collapsed={collapsed}
+        mobileDrawerOpen={mobileDrawerOpen}
         isMobile={isMobile}
-        onClose={handleCloseSidebar}
-        onToggleCompact={handleToggleCompact}
+        onCloseMobile={handleCloseMobileDrawer}
+        onToggleCollapse={handleToggleCollapse}
         currentPath={currentPath}
       />
 
@@ -66,7 +72,7 @@ export const HospitalLayout: React.FC<HospitalLayoutProps> = ({
         {/* Hospital Operational Header */}
         <HospitalHeader
           {...headerProps}
-          isSidebarOpen={isSidebarOpen}
+          isSidebarOpen={!collapsed}
           onToggleSidebar={handleToggleSidebar}
         />
 
