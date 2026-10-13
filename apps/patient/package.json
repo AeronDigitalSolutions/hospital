@@ -1,0 +1,11 @@
+{
+  "name": "@chikitsaalye/patient",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Chikitsaalye Patient Portal (Patient 360 & Self-Service)",
+  "scripts": {
+    "dev": "echo \"Patient portal development placeholder for future phase\"",
+    "build": "echo \"Patient portal build placeholder\"",
+    "lint": "echo \"No linting required for patient placeholder\""
+  }
+}

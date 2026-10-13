@@ -1,0 +1,28 @@
+{
+  "name": "chikitsaalye-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Chikitsaalye - Enterprise Digital Healthcare Operating System",
+  "scripts": {
+    "dev": "pnpm --filter \"@chikitsaalye/*\" --parallel dev",
+    "dev:api": "pnpm --filter @chikitsaalye/api dev",
+    "dev:web": "pnpm --filter @chikitsaalye/web dev",
+    "build": "pnpm --filter \"@chikitsaalye/types\" build && pnpm --filter \"@chikitsaalye/config\" build && pnpm --filter \"@chikitsaalye/validation\" build && pnpm --filter \"@chikitsaalye/auth\" build && pnpm --filter \"@chikitsaalye/database\" build && pnpm --filter \"@chikitsaalye/ui\" build && pnpm --filter \"@chikitsaalye/api\" build && pnpm --filter \"@chikitsaalye/web\" build",
+    "build:packages": "pnpm --filter \"./packages/*\" build",
+    "lint": "pnpm --filter \"@chikitsaalye/*\" lint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:generate": "pnpm --filter @chikitsaalye/database generate",
+    "db:migrate": "pnpm --filter @chikitsaalye/database migrate",
+    "db:seed": "pnpm --filter @chikitsaalye/database seed",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "clean": "pnpm -r exec rimraf dist .next build"
+  },
+  "devDependencies": {
+    "rimraf": "^5.0.5",
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.0"
+  },
+  "packageManager": "pnpm@12.9.1"
+}

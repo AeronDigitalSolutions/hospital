@@ -1,0 +1,27 @@
+{
+  "name": "@chikitsaalye/database",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "generate": "prisma generate",
+    "migrate": "prisma migrate dev",
+    "migrate:deploy": "prisma migrate deploy",
+    "seed": "tsx prisma/seed.ts",
+    "lint": "echo \"No linting required for database\"",
+    "clean": "rimraf dist"
+  },
+  "dependencies": {
+    "@chikitsaalye/config": "workspace:*",
+    "@chikitsaalye/types": "workspace:*",
+    "@prisma/client": "^5.14.0"
+  },
+  "devDependencies": {
+    "prisma": "^5.14.0",
+    "rimraf": "^5.0.5",
+    "tsx": "^4.10.5",
+    "typescript": "^5.4.5"
+  }
+}

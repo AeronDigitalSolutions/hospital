@@ -1,0 +1,24 @@
+{
+  "name": "@chikitsaalye/auth",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "lint": "echo \"No linting required for auth\"",
+    "clean": "rimraf dist"
+  },
+  "dependencies": {
+    "@chikitsaalye/config": "workspace:*",
+    "@chikitsaalye/types": "workspace:*",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.6",
+    "rimraf": "^5.0.5",
+    "typescript": "^5.4.5"
+  }
+}
