@@ -21,6 +21,7 @@ export interface HospitalHeaderProps {
   };
   emergencyAlertCount?: number;
   onToggleSidebar?: () => void;
+  isSidebarOpen?: boolean;
   onPatientSearch?: (query: string) => void;
   className?: string;
 }
@@ -37,6 +38,7 @@ export const HospitalHeader: React.FC<HospitalHeaderProps> = ({
   },
   emergencyAlertCount = 3,
   onToggleSidebar,
+  isSidebarOpen = true,
   onPatientSearch,
   className = '',
 }) => {
@@ -48,8 +50,13 @@ export const HospitalHeader: React.FC<HospitalHeaderProps> = ({
       <div className="flex items-center space-x-3">
         <button
           onClick={onToggleSidebar}
-          aria-label="Toggle navigation menu"
-          className="p-1.5 rounded-md text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+          aria-label={isSidebarOpen ? 'Hide navigation menu' : 'Show navigation menu'}
+          title={isSidebarOpen ? 'Hide navigation menu (collapse sidebar)' : 'Show navigation menu (open sidebar)'}
+          className={`p-1.5 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+            !isSidebarOpen
+              ? 'text-blue-600 bg-blue-50 hover:bg-blue-100 ring-1 ring-blue-300'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          }`}
         >
           <Menu className="w-5 h-5" />
         </button>
