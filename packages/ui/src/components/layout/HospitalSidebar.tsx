@@ -80,9 +80,9 @@ export const HOSPITAL_NAV_GROUPS: SidebarNavGroup[] = [
   {
     title: 'Administration & System',
     items: [
-      { name: 'Master Data', href: '/master-data', icon: Database },
+      { name: 'Master Data', href: '/administration/master-data', icon: Database },
       { name: 'ABDM & Integrations', href: '/integrations', icon: Share2 },
-      { name: 'Administration & Roles', href: '/admin', icon: Settings },
+      { name: 'Administration & Users', href: '/administration/users', icon: Settings },
     ],
   },
 ];

@@ -8,6 +8,20 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: false,
   },
+  async redirects() {
+    return [
+      {
+        source: '/master-data',
+        destination: '/administration/master-data',
+        permanent: false,
+      },
+      {
+        source: '/admin',
+        destination: '/administration/users',
+        permanent: false,
+      },
+    ];
+  },
   async rewrites() {
     return [
       {
