@@ -1,5 +1,5 @@
 // ==============================================================================
-// Chikitsaalye Database Schema - Core Architecture Foundation (CODEx-001)
+// Chikitsaalye Database Schema - Core Architecture & Patient Master (CODEx-001 & CODEx-002)
 // ==============================================================================
 
 generator client {
@@ -31,6 +31,7 @@ model HospitalOrganization {
   updatedAt   DateTime @updatedAt
 
   users       User[]
+  patients    Patient[]
 
   @@map("hospital_organizations")
 }
@@ -64,6 +65,11 @@ model User {
   userRoles      UserRole[]
   sessions       Session[]
   auditEvents    AuditEvent[]
+
+  // Attending Doctor relations
+  attendingEncounters Encounter[]      @relation("AttendingDoctor")
+  createdEncounters   Encounter[]      @relation("EncounterCreator")
+  createdPatients     Patient[]        @relation("PatientCreator")
 
   @@index([organizationId])
   @@index([department])
@@ -175,4 +181,450 @@ model AuditEvent {
   @@index([requestId])
   @@index([timestamp])
   @@map("audit_events")
+}
+
+// ==============================================================================
+// PATIENT MASTER FOUNDATION (CODEx-002)
+// Canonical Master Patient Index (MPI) for the entire hospital ecosystem
+// ==============================================================================
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  UNKNOWN
+}
+
+enum BloodGroup {
+  A_POSITIVE
+  A_NEGATIVE
+  B_POSITIVE
+  B_NEGATIVE
+  AB_POSITIVE
+  AB_NEGATIVE
+  O_POSITIVE
+  O_NEGATIVE
+  UNKNOWN
+}
+
+enum MaritalStatus {
+  SINGLE
+  MARRIED
+  DIVORCED
+  WIDOWED
+  OTHER
+}
+
+enum PatientStatus {
+  ACTIVE
+  INACTIVE
+  DECEASED
+  MERGED
+}
+
+model Patient {
+  id                  String               @id @default(uuid())
+  organizationId      String
+  uhid                String               @unique // Canonical UHID e.g. UPUMS-2024-000001
+  firstName           String
+  middleName          String?
+  lastName            String
+  gender              Gender
+  dateOfBirth         DateTime
+  isEstimatedDob      Boolean              @default(false)
+  bloodGroup          BloodGroup           @default(UNKNOWN)
+  maritalStatus       MaritalStatus?
+  nationality         String               @default("Indian")
+  religion            String?
+  occupation          String?
+  photoUrl            String?
+  status              PatientStatus        @default(ACTIVE)
+  deceasedAt          DateTime?
+  mergedIntoPatientId String?
+  createdById         String?
+  updatedById         String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  deletedAt           DateTime?
+
+  // Organization & Creator References
+  organization        HospitalOrganization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  creator             User?                @relation("PatientCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  mergedInto          Patient?             @relation("PatientMergeHistory", fields: [mergedIntoPatientId], references: [id], onDelete: SetNull)
+  mergedChildren      Patient[]            @relation("PatientMergeHistory")
+
+  // Normalized Patient Components
+  identifiers         PatientIdentifier[]
+  contacts            PatientContact[]
+  addresses           PatientAddress[]
+  emergencyContacts   EmergencyContact[]
+  insurances          PatientInsurance[]
+
+  // Clinical Flags (Doctor Workspace Ready)
+  allergies           PatientAllergy[]
+  conditions          PatientCondition[]
+  medications         PatientMedication[]
+  consents            PatientConsent[]
+
+  // Encounter Linkages
+  encounters          Encounter[]
+
+  @@index([organizationId])
+  @@index([uhid])
+  @@index([firstName, lastName])
+  @@index([dateOfBirth])
+  @@index([status])
+  @@index([deletedAt])
+  @@map("patients")
+}
+
+// ------------------------------------------------------------------------------
+// Generic Patient Identifiers (ABHA, National ID, Passport, External Hospital ID)
+// ------------------------------------------------------------------------------
+enum IdentifierType {
+  UHID
+  ABHA_NUMBER
+  ABHA_ADDRESS
+  NATIONAL_ID
+  PASSPORT
+  VOTER_ID
+  DRIVING_LICENSE
+  EXTERNAL_HOSPITAL_ID
+  OTHER
+}
+
+model PatientIdentifier {
+  id               String         @id @default(uuid())
+  patientId        String
+  type             IdentifierType
+  value            String
+  issuingAuthority String?        // e.g. ABDM, UIDAI, UPUMS
+  isPrimary        Boolean        @default(false)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  patient          Patient        @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@unique([type, value])
+  @@index([patientId])
+  @@index([type, value])
+  @@map("patient_identifiers")
+}
+
+// ------------------------------------------------------------------------------
+// Normalized Contacts (Phone, Email)
+// ------------------------------------------------------------------------------
+enum ContactType {
+  PHONE
+  EMAIL
+  LANDLINE
+}
+
+model PatientContact {
+  id         String      @id @default(uuid())
+  patientId  String
+  type       ContactType @default(PHONE)
+  value      String      // Phone or email
+  isPrimary  Boolean     @default(true)
+  isVerified Boolean     @default(false)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  patient    Patient     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@index([value])
+  @@map("patient_contacts")
+}
+
+// ------------------------------------------------------------------------------
+// Normalized Addresses
+// ------------------------------------------------------------------------------
+enum AddressType {
+  CURRENT
+  PERMANENT
+  TEMPORARY
+}
+
+model PatientAddress {
+  id           String      @id @default(uuid())
+  patientId    String
+  type         AddressType @default(CURRENT)
+  addressLine1 String
+  addressLine2 String?
+  city         String
+  district     String      // e.g. Etawah
+  state        String      @default("Uttar Pradesh")
+  postalCode   String
+  country      String      @default("India")
+  isPrimary    Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  patient      Patient     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@index([district, state])
+  @@map("patient_addresses")
+}
+
+// ------------------------------------------------------------------------------
+// Emergency Contacts
+// ------------------------------------------------------------------------------
+model EmergencyContact {
+  id             String   @id @default(uuid())
+  patientId      String
+  name           String
+  relationship   String   // e.g. Spouse, Father, Mother, Sibling, Guardian
+  phone          String
+  alternatePhone String?
+  email          String?
+  isPrimary      Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  patient        Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@map("emergency_contacts")
+}
+
+// ------------------------------------------------------------------------------
+// Patient Insurance / Schemes (PMJAY, CGHS, Private TPA)
+// ------------------------------------------------------------------------------
+enum PolicyType {
+  PMJAY
+  CGHS
+  PRIVATE_TPA
+  CORPORATE
+  GOVERNMENT
+  SELF
+}
+
+model PatientInsurance {
+  id              String     @id @default(uuid())
+  patientId       String
+  policyNumber    String
+  providerName    String     // e.g. Ayushman Bharat - PMJAY
+  policyType      PolicyType @default(PMJAY)
+  coverageDetails Json?
+  validTill       DateTime?
+  isActive        Boolean    @default(true)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  patient         Patient    @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@index([policyNumber])
+  @@map("patient_insurances")
+}
+
+// ------------------------------------------------------------------------------
+// Clinical Flags: Allergies
+// ------------------------------------------------------------------------------
+enum AllergenType {
+  DRUG
+  FOOD
+  ENVIRONMENTAL
+  BIOLOGICAL
+  OTHER
+}
+
+enum AllergySeverity {
+  MILD
+  MODERATE
+  SEVERE
+  LIFE_THREATENING
+}
+
+enum AllergyStatus {
+  ACTIVE
+  RESOLVED
+  SUSPECTED
+}
+
+model PatientAllergy {
+  id           String          @id @default(uuid())
+  patientId    String
+  allergen     String
+  allergenType AllergenType    @default(DRUG)
+  severity     AllergySeverity @default(MODERATE)
+  reaction     String?
+  status       AllergyStatus   @default(ACTIVE)
+  recordedAt   DateTime        @default(now())
+  recordedById String?
+  notes        String?
+
+  patient      Patient         @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@index([patientId, status])
+  @@map("patient_allergies")
+}
+
+// ------------------------------------------------------------------------------
+// Clinical Flags: Chronic Conditions
+// ------------------------------------------------------------------------------
+enum ConditionClinicalStatus {
+  ACTIVE
+  RECURRENCE
+  RELAPSE
+  INACTIVE
+  REMISSION
+  RESOLVED
+}
+
+enum ConditionVerificationStatus {
+  CONFIRMED
+  PROVISIONAL
+  DIFFERENTIAL
+}
+
+model PatientCondition {
+  id                 String                      @id @default(uuid())
+  patientId          String
+  conditionCode      String?                     // ICD-10 e.g. E11.9
+  conditionName      String                      // e.g. Type 2 Diabetes Mellitus
+  clinicalStatus     ConditionClinicalStatus     @default(ACTIVE)
+  verificationStatus ConditionVerificationStatus @default(CONFIRMED)
+  onsetDate          DateTime?
+  recordedAt         DateTime                    @default(now())
+  recordedById       String?
+  notes              String?
+
+  patient            Patient                     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@index([patientId, clinicalStatus])
+  @@map("patient_conditions")
+}
+
+// ------------------------------------------------------------------------------
+// Clinical Flags: Medication History
+// ------------------------------------------------------------------------------
+enum MedicationStatus {
+  ACTIVE
+  DISCONTINUED
+  COMPLETED
+}
+
+model PatientMedication {
+  id           String           @id @default(uuid())
+  patientId    String
+  drugName     String
+  dosage       String?
+  frequency    String?
+  route        String?          @default("ORAL")
+  startDate    DateTime?
+  endDate      DateTime?
+  prescribedBy String?
+  status       MedicationStatus @default(ACTIVE)
+  notes        String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  patient      Patient          @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@index([patientId, status])
+  @@map("patient_medications")
+}
+
+// ------------------------------------------------------------------------------
+// Patient Consents (General Treatment, ABDM Data Sharing)
+// ------------------------------------------------------------------------------
+enum ConsentType {
+  GENERAL_TREATMENT
+  ABDM_DATA_SHARING
+  PROCEDURE_SURGERY
+  RESEARCH_USE
+  BILLING_DISCLOSURE
+}
+
+enum ConsentStatus {
+  GRANTED
+  REVOKED
+  EXPIRED
+}
+
+model PatientConsent {
+  id            String        @id @default(uuid())
+  patientId     String
+  consentType   ConsentType   @default(GENERAL_TREATMENT)
+  status        ConsentStatus @default(GRANTED)
+  grantedAt     DateTime      @default(now())
+  validUntil    DateTime?
+  documentedBy  String?
+  notes         String?
+
+  patient       Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@index([patientId, consentType])
+  @@map("patient_consents")
+}
+
+// ==============================================================================
+// ENCOUNTER FOUNDATION (CODEx-002)
+// Every clinical interaction creates a canonical Encounter referencing Patient
+// ==============================================================================
+
+enum EncounterType {
+  OPD
+  IPD
+  EMERGENCY
+  TELEMEDICINE
+  FOLLOW_UP
+  DAY_CARE
+  PROCEDURE
+  SURGERY
+}
+
+enum EncounterStatus {
+  PLANNED
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum EncounterPriority {
+  ROUTINE
+  URGENT
+  EMERGENCY
+}
+
+model Encounter {
+  id                 String            @id @default(uuid())
+  encounterNumber    String            @unique // e.g. ENC-2024-000001
+  patientId          String
+  type               EncounterType     @default(OPD)
+  status             EncounterStatus   @default(OPEN)
+  priority           EncounterPriority @default(ROUTINE)
+  department         String            // e.g. GENERAL_MEDICINE, CARDIOLOGY, EMERGENCY
+  attendingDoctorId  String?
+  startTime          DateTime          @default(now())
+  endTime            DateTime?
+  reasonForVisit     String            // Chief complaint
+  metadata           Json?
+  createdById        String?
+  updatedById        String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  deletedAt          DateTime?
+
+  // Relationships
+  patient            Patient           @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  attendingDoctor    User?             @relation("AttendingDoctor", fields: [attendingDoctorId], references: [id], onDelete: SetNull)
+  creator            User?             @relation("EncounterCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([patientId])
+  @@index([encounterNumber])
+  @@index([status])
+  @@index([type])
+  @@index([department])
+  @@index([startTime])
+  @@index([deletedAt])
+  @@map("encounters")
 }

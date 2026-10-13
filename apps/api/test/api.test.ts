@@ -36,20 +36,28 @@ describe('Chikitsaalye Enterprise API Foundation (CODEx-001)', () => {
 
   it('POST /api/v1/patients returns 201 with idempotency support', async () => {
     const idempotencyKey = 'idem_test_' + Date.now();
+    const validPatient = {
+      firstName: 'Rohan',
+      lastName: 'Verma',
+      gender: 'MALE',
+      dateOfBirth: '1995-04-10T00:00:00.000Z',
+      contacts: [{ type: 'PHONE', value: '+91-9988776655', isPrimary: true }],
+    };
+
     const res = await request(app)
       .post('/api/v1/patients')
       .set('x-idempotency-key', idempotencyKey)
-      .send({ firstName: 'Test' });
+      .send(validPatient);
 
     expect(res.status).toBe(201);
     expect(res.body).toHaveProperty('success', true);
-    expect(res.body.data).toHaveProperty('message');
+    expect(res.body.data).toHaveProperty('uhid');
 
     // Second request with same idempotency key returns cached response
     const res2 = await request(app)
       .post('/api/v1/patients')
       .set('x-idempotency-key', idempotencyKey)
-      .send({ firstName: 'Test' });
+      .send(validPatient);
 
     expect(res2.status).toBe(201);
     expect(res2.headers['x-cache-lookup']).toBe('HIT');
