@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { HospitalLayout } from '@chikitsaalye/ui';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { SYSTEM_ROLES } from '@chikitsaalye/auth';
@@ -14,6 +14,7 @@ export interface ClientShellProps {
 const ShellContent: React.FC<ClientShellProps> = ({ children }) => {
   const { user, switchDemoUser } = useAuth();
   const pathname = usePathname();
+  const router = useRouter();
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden">
@@ -62,6 +63,7 @@ const ShellContent: React.FC<ClientShellProps> = ({ children }) => {
       <div className="flex-1 overflow-hidden">
         <HospitalLayout
           currentPath={pathname}
+          onNavigate={(href) => router.push(href)}
           headerProps={{
             hospitalName: 'Uttar Pradesh University of Medical Sciences Hospital',
             facilityCode: 'UPUMS-MAIN',

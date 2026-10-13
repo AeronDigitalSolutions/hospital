@@ -9,19 +9,35 @@ export interface HospitalLayoutProps {
   headerProps?: Partial<HospitalHeaderProps>;
   currentPath?: string;
   defaultCollapsed?: boolean;
+  onNavigate?: (href: string) => void;
 }
+
+const STORAGE_KEY_SIDEBAR_COLLAPSED = 'chikitsaalye_sidebar_collapsed';
 
 export const HospitalLayout: React.FC<HospitalLayoutProps> = ({
   children,
   headerProps,
   currentPath = '/',
   defaultCollapsed = false,
+  onNavigate,
 }) => {
   // Desktop collapsed state (false = expanded with labels, true = collapsed icon dock)
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   // Mobile drawer state
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+
+  // Restore persisted collapsed preference from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_SIDEBAR_COLLAPSED);
+      if (saved !== null) {
+        setCollapsed(saved === 'true');
+      }
+    } catch {
+      // ignore in SSR / restricted storage
+    }
+  }, []);
 
   useEffect(() => {
     const handleResize = () => {
@@ -43,7 +59,13 @@ export const HospitalLayout: React.FC<HospitalLayoutProps> = ({
     if (isMobile) {
       setMobileDrawerOpen((prev) => !prev);
     } else {
-      setCollapsed((prev) => !prev);
+      setCollapsed((prev) => {
+        const next = !prev;
+        try {
+          localStorage.setItem(STORAGE_KEY_SIDEBAR_COLLAPSED, String(next));
+        } catch {}
+        return next;
+      });
     }
   }, [isMobile]);
 
@@ -52,7 +74,13 @@ export const HospitalLayout: React.FC<HospitalLayoutProps> = ({
   }, []);
 
   const handleToggleCollapse = useCallback(() => {
-    setCollapsed((prev) => !prev);
+    setCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(STORAGE_KEY_SIDEBAR_COLLAPSED, String(next));
+      } catch {}
+      return next;
+    });
   }, []);
 
   return (
@@ -65,6 +93,7 @@ export const HospitalLayout: React.FC<HospitalLayoutProps> = ({
         onCloseMobile={handleCloseMobileDrawer}
         onToggleCollapse={handleToggleCollapse}
         currentPath={currentPath}
+        onNavigate={onNavigate}
       />
 
       {/* Main Content Viewport */}

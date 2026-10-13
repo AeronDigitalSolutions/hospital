@@ -48,6 +48,7 @@ export interface HospitalSidebarProps {
   onToggleCollapse?: () => void;
   currentPath?: string;
   className?: string;
+  onNavigate?: (href: string) => void;
   /** Backwards compatibility aliases */
   isOpen?: boolean;
   isCompact?: boolean;
@@ -232,6 +233,7 @@ export const HospitalSidebar: React.FC<HospitalSidebarProps> = ({
   onToggleCollapse,
   currentPath = '/',
   className = '',
+  onNavigate,
   // Backwards compatibility mappings
   isOpen,
   isCompact,
@@ -264,6 +266,20 @@ export const HospitalSidebar: React.FC<HospitalSidebarProps> = ({
   const handleMouseLeave = useCallback(() => {
     setHoveredData(null);
   }, []);
+
+  const handleLinkClick = useCallback(
+    (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+      e.preventDefault();
+      setHoveredData(null);
+      if (isMobile) handleClose?.();
+      if (onNavigate) {
+        onNavigate(href);
+      } else {
+        window.location.href = href;
+      }
+    },
+    [isMobile, handleClose, onNavigate]
+  );
 
   return (
     <>
@@ -387,9 +403,7 @@ export const HospitalSidebar: React.FC<HospitalSidebarProps> = ({
                         <li key={itemIdx} className="flex justify-center">
                           <a
                             href={item.href}
-                            onClick={() => {
-                              if (isMobile) handleClose?.();
-                            }}
+                            onClick={(e) => handleLinkClick(e, item.href)}
                             onMouseEnter={(e) => handleMouseEnter(item, isActive, e)}
                             onMouseLeave={handleMouseLeave}
                             aria-label={item.name}
@@ -432,9 +446,7 @@ export const HospitalSidebar: React.FC<HospitalSidebarProps> = ({
                       <li key={itemIdx}>
                         <a
                           href={item.href}
-                          onClick={() => {
-                            if (isMobile) handleClose?.();
-                          }}
+                          onClick={(e) => handleLinkClick(e, item.href)}
                           className={cn(
                             'flex items-center space-x-3 px-2.5 py-2 rounded-lg text-xs font-medium transition-all group relative',
                             isActive
