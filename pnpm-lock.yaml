@@ -238,6 +238,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@chikitsaalye/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
       '@chikitsaalye/config':
         specifier: workspace:*
         version: link:../../packages/config

@@ -41,38 +41,48 @@ model HospitalOrganization {
 // ------------------------------------------------------------------------------
 enum UserStatus {
   ACTIVE
-  INACTIVE
+  INVITED
   SUSPENDED
+  DISABLED
+  INACTIVE
 }
 
 model User {
-  id             String                @id @default(uuid())
-  organizationId String
-  username       String                @unique
-  email          String                @unique
-  fullName       String
-  passwordHash   String
-  status         UserStatus            @default(ACTIVE)
-  department     String?
-  phone          String?
-  designation    String?
-  avatarUrl      String?
-  lastLoginAt    DateTime?
-  createdAt      DateTime              @default(now())
-  updatedAt      DateTime              @updatedAt
+  id                  String                @id @default(uuid())
+  organizationId      String
+  username            String                @unique
+  email               String                @unique
+  fullName            String
+  passwordHash        String
+  status              UserStatus            @default(ACTIVE)
+  department          String?
+  phone               String?
+  designation         String?
+  avatarUrl           String?
+  patientId           String?
+  failedLoginAttempts Int                   @default(0)
+  lockoutUntil        DateTime?
+  mfaEnabled          Boolean               @default(false)
+  mfaSecret           String?
+  lastLoginAt         DateTime?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
 
-  organization   HospitalOrganization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  userRoles      UserRole[]
-  sessions       Session[]
-  auditEvents    AuditEvent[]
+  organization        HospitalOrganization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  patient             Patient?              @relation(fields: [patientId], references: [id], onDelete: SetNull)
+  userRoles           UserRole[]
+  sessions            Session[]
+  auditEvents         AuditEvent[]
 
   // Attending Doctor relations
-  attendingEncounters Encounter[]      @relation("AttendingDoctor")
-  createdEncounters   Encounter[]      @relation("EncounterCreator")
-  createdPatients     Patient[]        @relation("PatientCreator")
+  attendingEncounters Encounter[]           @relation("AttendingDoctor")
+  createdEncounters   Encounter[]           @relation("EncounterCreator")
+  createdPatients     Patient[]             @relation("PatientCreator")
 
   @@index([organizationId])
   @@index([department])
+  @@index([patientId])
+  @@index([status])
   @@map("users")
 }
 
@@ -268,6 +278,9 @@ model Patient {
 
   // Encounter Linkages
   encounters          Encounter[]
+
+  // Linked User Accounts (for Patient Portal authentication)
+  userAccounts        User[]
 
   @@index([organizationId])
   @@index([uhid])

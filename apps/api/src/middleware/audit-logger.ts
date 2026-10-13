@@ -16,7 +16,7 @@ export function auditLoggerMiddleware(req: Request, res: Response, next: NextFun
         actor: {
           id: actorId,
           type: actorType as any,
-          department: req.auth?.department,
+          department: req.auth?.department || undefined,
           ipAddress: req.ip,
           userAgent: req.get('user-agent'),
         },

@@ -3,11 +3,15 @@ import {
   listAdmin,
   getAdminById,
   createAdmin,
+  getAuditLogs,
 } from './admin.controller.js';
 import { idempotencyMiddleware } from '../../middleware/idempotency.js';
+import { authenticate, requirePermission } from '../../middleware/auth.js';
 
 export const adminRouter = Router();
 
-adminRouter.get('/', listAdmin);
-adminRouter.get('/:id', getAdminById);
-adminRouter.post('/', idempotencyMiddleware(), createAdmin);
+// Governance & Operations
+adminRouter.get('/', authenticate(), requirePermission('ADMIN.ACCESS'), listAdmin);
+adminRouter.get('/audit', authenticate(), requirePermission('AUDIT.READ'), getAuditLogs);
+adminRouter.get('/:id', authenticate(), requirePermission('ADMIN.ACCESS'), getAdminById);
+adminRouter.post('/', authenticate(), requirePermission('ADMIN.ACCESS'), idempotencyMiddleware(), createAdmin);

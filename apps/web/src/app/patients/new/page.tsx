@@ -26,6 +26,7 @@ import {
   Home,
   AlertCircle,
 } from 'lucide-react';
+import { ProtectedRoute } from '../../../components/ProtectedRoute';
 
 export default function NewPatientRegistrationPage() {
   const router = useRouter();
@@ -218,7 +219,8 @@ export default function NewPatientRegistrationPage() {
   };
 
   return (
-    <PageContainer
+    <ProtectedRoute requiredPermissions={['PATIENT.CREATE']}>
+      <PageContainer
       title="Register Canonical Patient"
       subtitle="Issue new institutional UHID and establish Master Patient Index record"
       breadcrumbs={[
@@ -547,5 +549,6 @@ export default function NewPatientRegistrationPage() {
         </div>
       </form>
     </PageContainer>
+    </ProtectedRoute>
   );
 }

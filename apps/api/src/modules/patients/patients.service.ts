@@ -636,7 +636,7 @@ export class PatientsService implements IPatientsService {
             actor: {
               id: auth?.userId || 'system',
               type: auth ? 'USER' : 'SYSTEM',
-              department: auth?.department,
+              department: auth?.department || undefined,
             },
             action: 'PATIENT_VIEWED',
             resource: 'Patient',
@@ -661,7 +661,7 @@ export class PatientsService implements IPatientsService {
       actor: {
         id: auth?.userId || 'system',
         type: auth ? 'USER' : 'SYSTEM',
-        department: auth?.department,
+        department: auth?.department || undefined,
       },
       action: 'PATIENT_VIEWED',
       resource: 'Patient',
@@ -720,7 +720,7 @@ export class PatientsService implements IPatientsService {
       actor: {
         id: auth?.userId || 'system',
         type: auth ? 'USER' : 'SYSTEM',
-        department: auth?.department,
+        department: auth?.department || undefined,
       },
       action: 'PATIENT_UPDATED',
       resource: 'Patient',

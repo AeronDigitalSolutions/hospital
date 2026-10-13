@@ -1,14 +1,19 @@
 import jwt from 'jsonwebtoken';
 import { env } from '@chikitsaalye/config';
-import type { AuthTokens, AuthContext } from '@chikitsaalye/types';
+import type { AuthTokens } from '@chikitsaalye/types';
 
 export interface JwtTokenPayload {
   sub: string; // userId
+  username: string;
   email: string;
   roles: string[];
   permissions: string[];
-  department?: string;
+  status: string;
+  patientId?: string | null;
+  department?: string | null;
   organizationId: string;
+  sessionId?: string;
+  mfaVerified?: boolean;
   type: 'access' | 'refresh';
 }
 
@@ -16,19 +21,28 @@ export function generateAuthTokens(
   user: {
     id: string;
     email: string;
-    department?: string;
+    username: string;
+    status?: string;
+    patientId?: string | null;
+    department?: string | null;
     organizationId: string;
   },
   roles: string[],
-  permissions: string[]
+  permissions: string[],
+  sessionId?: string
 ): AuthTokens {
   const payloadBase = {
     sub: user.id,
+    username: user.username,
     email: user.email,
     roles,
     permissions,
-    department: user.department,
+    status: user.status || 'ACTIVE',
+    patientId: user.patientId || null,
+    department: user.department || null,
     organizationId: user.organizationId,
+    sessionId: sessionId || undefined,
+    mfaVerified: false,
   };
 
   const accessToken = jwt.sign(
@@ -38,7 +52,7 @@ export function generateAuthTokens(
   );
 
   const refreshToken = jwt.sign(
-    { sub: user.id, type: 'refresh' },
+    { sub: user.id, sessionId, type: 'refresh' },
     env.JWT_REFRESH_SECRET,
     { expiresIn: '7d' }
   );
@@ -59,10 +73,14 @@ export function verifyAccessToken(token: string): JwtTokenPayload {
   return decoded;
 }
 
-export function verifyRefreshToken(token: string): { sub: string } {
-  const decoded = jwt.verify(token, env.JWT_REFRESH_SECRET) as { sub: string; type: string };
+export function verifyRefreshToken(token: string): { sub: string; sessionId?: string } {
+  const decoded = jwt.verify(token, env.JWT_REFRESH_SECRET) as {
+    sub: string;
+    sessionId?: string;
+    type: string;
+  };
   if (decoded.type !== 'refresh') {
     throw new Error('Invalid token type: expected refresh token');
   }
-  return { sub: decoded.sub };
+  return { sub: decoded.sub, sessionId: decoded.sessionId };
 }

@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../src/app.js';
+import { authService } from '../src/modules/auth/auth.service.js';
 
-describe('Chikitsaalye Enterprise API Foundation (CODEx-001)', () => {
+describe('Chikitsaalye Enterprise API Foundation (CODEx-001 & CODEx-003)', () => {
   const app = createApp();
+  const adminToken = authService.createTestToken('SUPER_ADMIN');
 
   it('GET /api/v1/health returns structured health check response', async () => {
     const res = await request(app).get('/api/v1/health');
@@ -22,8 +24,18 @@ describe('Chikitsaalye Enterprise API Foundation (CODEx-001)', () => {
     expect(res.headers['x-request-id']).toBeDefined();
   });
 
-  it('GET /api/v1/patients returns standardized paginated envelope', async () => {
-    const res = await request(app).get('/api/v1/patients?page=1&pageSize=20');
+  it('GET /api/v1/patients requires authentication and rejects unauthenticated requests with 401', async () => {
+    const res = await request(app).get('/api/v1/patients');
+
+    expect(res.status).toBe(401);
+    expect(res.body).toHaveProperty('success', false);
+    expect(res.body.error).toHaveProperty('code', 'UNAUTHORIZED');
+  });
+
+  it('GET /api/v1/patients returns standardized paginated envelope when authenticated', async () => {
+    const res = await request(app)
+      .get('/api/v1/patients?page=1&pageSize=20')
+      .set('Authorization', `Bearer ${adminToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('success', true);
@@ -34,7 +46,7 @@ describe('Chikitsaalye Enterprise API Foundation (CODEx-001)', () => {
     expect(res.body.meta.pagination.pageSize).toBe(20);
   });
 
-  it('POST /api/v1/patients returns 201 with idempotency support', async () => {
+  it('POST /api/v1/patients returns 201 with idempotency support when authenticated', async () => {
     const idempotencyKey = 'idem_test_' + Date.now();
     const validPatient = {
       firstName: 'Rohan',
@@ -46,6 +58,7 @@ describe('Chikitsaalye Enterprise API Foundation (CODEx-001)', () => {
 
     const res = await request(app)
       .post('/api/v1/patients')
+      .set('Authorization', `Bearer ${adminToken}`)
       .set('x-idempotency-key', idempotencyKey)
       .send(validPatient);
 
@@ -56,6 +69,7 @@ describe('Chikitsaalye Enterprise API Foundation (CODEx-001)', () => {
     // Second request with same idempotency key returns cached response
     const res2 = await request(app)
       .post('/api/v1/patients')
+      .set('Authorization', `Bearer ${adminToken}`)
       .set('x-idempotency-key', idempotencyKey)
       .send(validPatient);
 
@@ -68,7 +82,6 @@ describe('Chikitsaalye Enterprise API Foundation (CODEx-001)', () => {
 
     expect(res.status).toBe(404);
     expect(res.body).toHaveProperty('success', false);
-    expect(res.body).toHaveProperty('error');
     expect(res.body.error).toHaveProperty('code', 'NOT_FOUND');
     expect(res.body.error).toHaveProperty('message');
     expect(res.body.error).toHaveProperty('requestId');

@@ -1,9 +1,11 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../src/app.js';
+import { authService } from '../src/modules/auth/auth.service.js';
 
 describe('CODEx-002: Patient Master & Encounter Foundation', () => {
   const app = createApp();
+  const adminToken = authService.createTestToken('SUPER_ADMIN');
 
   const samplePatient = {
     firstName: 'Aarav',
@@ -106,6 +108,7 @@ describe('CODEx-002: Patient Master & Encounter Foundation', () => {
     it('POST /api/v1/patients creates a canonical patient with UHID and normalized components', async () => {
       const res = await request(app)
         .post('/api/v1/patients')
+        .set('Authorization', `Bearer ${adminToken}`)
         .send(samplePatient);
 
       expect(res.status).toBe(201);
@@ -142,6 +145,7 @@ describe('CODEx-002: Patient Master & Encounter Foundation', () => {
     it('GET /api/v1/patients retrieves paginated patient list and supports search', async () => {
       const res = await request(app)
         .get('/api/v1/patients')
+        .set('Authorization', `Bearer ${adminToken}`)
         .query({ search: 'Aarav', page: 1, pageSize: 10 });
 
       expect(res.status).toBe(200);
@@ -154,12 +158,16 @@ describe('CODEx-002: Patient Master & Encounter Foundation', () => {
 
     it('GET /api/v1/patients/:id retrieves patient by UUID or UHID', async () => {
       // Lookup by UUID
-      const res1 = await request(app).get(`/api/v1/patients/${createdPatientId}`);
+      const res1 = await request(app)
+        .get(`/api/v1/patients/${createdPatientId}`)
+        .set('Authorization', `Bearer ${adminToken}`);
       expect(res1.status).toBe(200);
       expect(res1.body.data.id).toBe(createdPatientId);
 
       // Lookup by UHID
-      const res2 = await request(app).get(`/api/v1/patients/${createdUhid}`);
+      const res2 = await request(app)
+        .get(`/api/v1/patients/${createdUhid}`)
+        .set('Authorization', `Bearer ${adminToken}`);
       expect(res2.status).toBe(200);
       expect(res2.body.data.uhid).toBe(createdUhid);
     });
@@ -167,6 +175,7 @@ describe('CODEx-002: Patient Master & Encounter Foundation', () => {
     it('PATCH /api/v1/patients/:id updates patient demographics and records audit', async () => {
       const res = await request(app)
         .patch(`/api/v1/patients/${createdPatientId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({ occupation: 'Senior Engineer', maritalStatus: 'MARRIED' });
 
       expect(res.status).toBe(200);
@@ -174,9 +183,9 @@ describe('CODEx-002: Patient Master & Encounter Foundation', () => {
     });
 
     it('POST /api/v1/patients/check-duplicates flags possible duplicates with matched signals', async () => {
-      // Check duplicate using same phone number
       const res = await request(app)
         .post('/api/v1/patients/check-duplicates')
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({
           firstName: 'Aarav',
           lastName: 'Sharma',
@@ -193,7 +202,9 @@ describe('CODEx-002: Patient Master & Encounter Foundation', () => {
     });
 
     it('GET /api/v1/patients/:id/360 returns comprehensive clinical 360 overview', async () => {
-      const res = await request(app).get(`/api/v1/patients/${createdPatientId}/360`);
+      const res = await request(app)
+        .get(`/api/v1/patients/${createdPatientId}/360`)
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(200);
       expect(res.body.data).toHaveProperty('patient');
@@ -207,6 +218,7 @@ describe('CODEx-002: Patient Master & Encounter Foundation', () => {
     it('POST /api/v1/patients rejects invalid data with standardized 400 validation error', async () => {
       const res = await request(app)
         .post('/api/v1/patients')
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({
           firstName: '', // empty name
           gender: 'INVALID_GENDER',
@@ -227,6 +239,7 @@ describe('CODEx-002: Patient Master & Encounter Foundation', () => {
     it('POST /api/v1/encounters creates an encounter bound to canonical patient', async () => {
       const res = await request(app)
         .post('/api/v1/encounters')
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({
           patientId: createdPatientId,
           type: 'OPD',
@@ -250,6 +263,7 @@ describe('CODEx-002: Patient Master & Encounter Foundation', () => {
     it('POST /api/v1/encounters rejects non-existent patient with 404', async () => {
       const res = await request(app)
         .post('/api/v1/encounters')
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({
           patientId: '00000000-0000-0000-0000-000000000000',
           department: 'OPD',
@@ -265,6 +279,7 @@ describe('CODEx-002: Patient Master & Encounter Foundation', () => {
       // 1. OPEN -> IN_PROGRESS (Valid)
       const res1 = await request(app)
         .patch(`/api/v1/encounters/${createdEncounterId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({ status: 'IN_PROGRESS' });
 
       expect(res1.status).toBe(200);
@@ -273,6 +288,7 @@ describe('CODEx-002: Patient Master & Encounter Foundation', () => {
       // 2. IN_PROGRESS -> COMPLETED (Valid)
       const res2 = await request(app)
         .patch(`/api/v1/encounters/${createdEncounterId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({ status: 'COMPLETED' });
 
       expect(res2.status).toBe(200);
@@ -282,6 +298,7 @@ describe('CODEx-002: Patient Master & Encounter Foundation', () => {
       // 3. COMPLETED -> OPEN (Illegal transition from terminal state!)
       const res3 = await request(app)
         .patch(`/api/v1/encounters/${createdEncounterId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({ status: 'OPEN' });
 
       expect(res3.status).toBe(409); // Conflict / invalid state transition
@@ -292,6 +309,7 @@ describe('CODEx-002: Patient Master & Encounter Foundation', () => {
     it('GET /api/v1/encounters filters by patientId, department, and status', async () => {
       const res = await request(app)
         .get('/api/v1/encounters')
+        .set('Authorization', `Bearer ${adminToken}`)
         .query({ patientId: createdPatientId, status: 'COMPLETED' });
 
       expect(res.status).toBe(200);
@@ -302,7 +320,9 @@ describe('CODEx-002: Patient Master & Encounter Foundation', () => {
     });
 
     it('Patient 360 includes newly linked encounters', async () => {
-      const res = await request(app).get(`/api/v1/patients/${createdPatientId}/360`);
+      const res = await request(app)
+        .get(`/api/v1/patients/${createdPatientId}/360`)
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(200);
       expect(res.body.data.encountersSummary.totalEncounters).toBeGreaterThanOrEqual(1);

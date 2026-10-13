@@ -1,38 +1,12 @@
-import { Request, Response } from 'express';
-import { sendSuccess, sendPaginated } from '../../middleware/response-envelope.js';
+import { Request, Response, NextFunction } from 'express';
+import { sendSuccess } from '../../middleware/response-envelope.js';
+import { authService } from '../auth/auth.service.js';
 
-export async function listPermissions(req: Request, res: Response) {
-  const page = Number(req.query.page) || 1;
-  const pageSize = Number(req.query.pageSize) || 20;
-
-  return sendPaginated(req, res, {
-    items: [],
-    total: 0,
-    page,
-    pageSize,
-    totalPages: 0,
-  });
-}
-
-export async function getPermissionsById(req: Request, res: Response) {
-  const { id } = req.params;
-  return sendSuccess(req, res, {
-    id,
-    module: 'permissions',
-    name: 'Granular Permissions',
-    status: 'FOUNDATION_ESTABLISHED',
-  });
-}
-
-export async function createPermissions(req: Request, res: Response) {
-  return sendSuccess(
-    req,
-    res,
-    {
-      module: 'permissions',
-      status: 'ACCEPTED',
-      message: 'Granular Permissions architectural boundary established. Business logic scheduled in subsequent CODEx phases.',
-    },
-    201
-  );
+export async function listPermissions(req: Request, res: Response, next: NextFunction) {
+  try {
+    const permissions = authService.listPermissions();
+    return sendSuccess(req, res, permissions);
+  } catch (err) {
+    return next(err);
+  }
 }

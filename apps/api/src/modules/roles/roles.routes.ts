@@ -1,13 +1,26 @@
 import { Router } from 'express';
 import {
   listRoles,
-  getRolesById,
-  createRoles,
+  getRoleById,
+  updateRolePermissions,
 } from './roles.controller.js';
-import { idempotencyMiddleware } from '../../middleware/idempotency.js';
+import { validateBody } from '../../middleware/validate.js';
+import { updateRolePermissionsSchema } from '@chikitsaalye/validation';
+import { authenticate, requirePermission } from '../../middleware/auth.js';
 
 export const rolesRouter = Router();
 
-rolesRouter.get('/', listRoles);
-rolesRouter.get('/:id', getRolesById);
-rolesRouter.post('/', idempotencyMiddleware(), createRoles);
+// List Roles (Requires ROLE.READ)
+rolesRouter.get('/', authenticate(), requirePermission('ROLE.READ'), listRoles);
+
+// Get Single Role (Requires ROLE.READ)
+rolesRouter.get('/:id', authenticate(), requirePermission('ROLE.READ'), getRoleById);
+
+// Update Role Permissions (Requires ROLE.MANAGE)
+rolesRouter.put(
+  '/:id/permissions',
+  authenticate(),
+  requirePermission('ROLE.MANAGE'),
+  validateBody(updateRolePermissionsSchema),
+  updateRolePermissions
+);

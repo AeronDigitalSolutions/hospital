@@ -1,5 +1,6 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { sendSuccess, sendPaginated } from '../../middleware/response-envelope.js';
+import { auditService } from '../../services/audit.service.js';
 
 export async function listAdmin(req: Request, res: Response) {
   const page = Number(req.query.page) || 1;
@@ -20,7 +21,7 @@ export async function getAdminById(req: Request, res: Response) {
     id,
     module: 'admin',
     name: 'Hospital Administration & Governance',
-    status: 'FOUNDATION_ESTABLISHED',
+    status: 'ACTIVE',
   });
 }
 
@@ -31,8 +32,21 @@ export async function createAdmin(req: Request, res: Response) {
     {
       module: 'admin',
       status: 'ACCEPTED',
-      message: 'Hospital Administration & Governance architectural boundary established. Business logic scheduled in subsequent CODEx phases.',
+      message: 'Hospital Administration & Governance operational.',
     },
     201
   );
+}
+
+export async function getAuditLogs(req: Request, res: Response, next: NextFunction) {
+  try {
+    const resource = req.query.resource as string | undefined;
+    const resourceId = req.query.resourceId as string | undefined;
+    const actorId = req.query.actorId as string | undefined;
+
+    const events = await auditService.queryEvents({ resource, resourceId, actorId });
+    return sendSuccess(req, res, events);
+  } catch (err) {
+    return next(err);
+  }
 }

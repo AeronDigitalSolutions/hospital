@@ -1,13 +1,8 @@
 import { Router } from 'express';
-import {
-  listPermissions,
-  getPermissionsById,
-  createPermissions,
-} from './permissions.controller.js';
-import { idempotencyMiddleware } from '../../middleware/idempotency.js';
+import { listPermissions } from './permissions.controller.js';
+import { authenticate, requirePermission } from '../../middleware/auth.js';
 
 export const permissionsRouter = Router();
 
-permissionsRouter.get('/', listPermissions);
-permissionsRouter.get('/:id', getPermissionsById);
-permissionsRouter.post('/', idempotencyMiddleware(), createPermissions);
+// List Permissions Catalogue (Requires PERMISSION.READ or ROLE.READ)
+permissionsRouter.get('/', authenticate(), requirePermission('PERMISSION.READ'), listPermissions);

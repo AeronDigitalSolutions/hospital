@@ -10,6 +10,7 @@
     "clean": "rimraf .next dist"
   },
   "dependencies": {
+    "@chikitsaalye/auth": "workspace:*",
     "@chikitsaalye/config": "workspace:*",
     "@chikitsaalye/types": "workspace:*",
     "@chikitsaalye/ui": "workspace:*",

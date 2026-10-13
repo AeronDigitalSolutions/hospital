@@ -1,38 +1,46 @@
-import { Request, Response } from 'express';
-import { sendSuccess, sendPaginated } from '../../middleware/response-envelope.js';
+import { Request, Response, NextFunction } from 'express';
+import { sendSuccess } from '../../middleware/response-envelope.js';
+import { NotFoundError } from '../../middleware/errors.js';
+import { authService } from '../auth/auth.service.js';
 
-export async function listRoles(req: Request, res: Response) {
-  const page = Number(req.query.page) || 1;
-  const pageSize = Number(req.query.pageSize) || 20;
-
-  return sendPaginated(req, res, {
-    items: [],
-    total: 0,
-    page,
-    pageSize,
-    totalPages: 0,
-  });
+export async function listRoles(req: Request, res: Response, next: NextFunction) {
+  try {
+    const roles = await authService.listRoles();
+    return sendSuccess(req, res, roles);
+  } catch (err) {
+    return next(err);
+  }
 }
 
-export async function getRolesById(req: Request, res: Response) {
-  const { id } = req.params;
-  return sendSuccess(req, res, {
-    id,
-    module: 'roles',
-    name: 'Roles & Access Control',
-    status: 'FOUNDATION_ESTABLISHED',
-  });
+export async function getRoleById(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const role = await authService.getRoleByCode(id.toUpperCase());
+    if (!role) {
+      throw new NotFoundError(`Role '${id}' not found`);
+    }
+
+    return sendSuccess(req, res, role);
+  } catch (err) {
+    return next(err);
+  }
 }
 
-export async function createRoles(req: Request, res: Response) {
-  return sendSuccess(
-    req,
-    res,
-    {
-      module: 'roles',
-      status: 'ACCEPTED',
-      message: 'Roles & Access Control architectural boundary established. Business logic scheduled in subsequent CODEx phases.',
-    },
-    201
-  );
+export async function updateRolePermissions(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const { permissions } = req.body;
+    const actorId = req.auth?.userId || 'system';
+
+    const updated = await authService.updateRolePermissions(id.toUpperCase(), permissions, {
+      actorId,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      requestId: req.requestId,
+    });
+
+    return sendSuccess(req, res, updated);
+  } catch (err) {
+    return next(err);
+  }
 }
