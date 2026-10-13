@@ -5,3 +5,4 @@ export * from './audit.js';
 export * from './modules.js';
 export * from './patient.js';
 export * from './encounter.js';
+export * from './master-data.js';

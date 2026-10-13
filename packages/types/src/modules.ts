@@ -27,7 +27,7 @@ export const HOSPITAL_MODULES = [
 
 export type HospitalModule = (typeof HOSPITAL_MODULES)[number];
 
-export type DepartmentType =
+export type DepartmentSpecialty =
   | 'OPD'
   | 'IPD'
   | 'EMERGENCY'

@@ -641,3 +641,443 @@ model Encounter {
   @@index([deletedAt])
   @@map("encounters")
 }
+
+// ==============================================================================
+// MASTER DATA MANAGEMENT FOUNDATION (CODEx-004)
+// Centralized taxonomies, facilities, clinical catalogues & tariffs
+// ==============================================================================
+
+enum DepartmentType {
+  CLINICAL
+  DIAGNOSTIC
+  ADMINISTRATIVE
+  SUPPORT
+}
+
+model Department {
+  id                 String           @id @default(uuid())
+  hospitalId         String           @default("UPUMS-MAIN")
+  code               String           @unique // e.g. GEN_MED, GEN_SURG, RADIO
+  name               String
+  type               DepartmentType   @default(CLINICAL)
+  description        String?
+  headOfDepartmentId String?
+  isActive           Boolean          @default(true)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  subdepartments     Subdepartment[]
+  staffProfiles      StaffProfile[]
+  doctorProfiles     DoctorProfile[]
+  wards              Ward[]
+  services           HospitalService[]
+  investigations     InvestigationMaster[]
+  procedures         ProcedureMaster[]
+
+  @@index([hospitalId])
+  @@index([type])
+  @@index([isActive])
+  @@map("departments")
+}
+
+model Subdepartment {
+  id           String     @id @default(uuid())
+  departmentId String
+  code         String     @unique // e.g. NEPHRO, GASTRO
+  name         String
+  description  String?
+  isActive     Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  @@index([departmentId])
+  @@map("subdepartments")
+}
+
+enum ProfessionalRole {
+  DOCTOR
+  NURSE
+  LAB_TECHNICIAN
+  RADIOLOGIST
+  PHARMACIST
+  ADMINISTRATIVE
+  BILLING_OPERATOR
+  OTHER
+}
+
+model StaffProfile {
+  id               String           @id @default(uuid())
+  userId           String           @unique
+  staffCode        String           @unique // e.g. STF-00101
+  departmentId     String
+  subdepartmentId  String?
+  professionalRole ProfessionalRole @default(DOCTOR)
+  designation      String
+  phone            String?
+  email            String?
+  isActive         Boolean          @default(true)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  department       Department       @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  doctorProfile    DoctorProfile?
+
+  @@index([departmentId])
+  @@index([professionalRole])
+  @@map("staff_profiles")
+}
+
+model DoctorProfile {
+  id                               String       @id @default(uuid())
+  staffProfileId                   String       @unique
+  departmentId                     String
+  subdepartmentId                  String?
+  medicalCouncilRegistrationNumber String       @unique // e.g. UP-MCI-48921
+  specialization                   String
+  qualifications                   String       // e.g. MBBS, MD (Medicine)
+  opdRoomNumber                    String?
+  consultationFee                  Decimal      @default(0.00) @db.Decimal(10, 2)
+  isActive                         Boolean      @default(true)
+  createdAt                        DateTime     @default(now())
+  updatedAt                        DateTime     @updatedAt
+
+  staffProfile                     StaffProfile @relation(fields: [staffProfileId], references: [id], onDelete: Cascade)
+  department                       Department   @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+
+  @@index([departmentId])
+  @@index([specialization])
+  @@map("doctor_profiles")
+}
+
+enum WardType {
+  GENERAL
+  ICU
+  EMERGENCY
+  PRIVATE
+  SEMI_PRIVATE
+  PEDIATRIC
+  MATERNITY
+  POST_OP
+}
+
+enum GenderAllowed {
+  ALL
+  MALE
+  FEMALE
+}
+
+model Ward {
+  id            String        @id @default(uuid())
+  hospitalId    String        @default("UPUMS-MAIN")
+  departmentId  String
+  code          String        @unique // e.g. WARD-EMR, WARD-MMW
+  name          String
+  wardType      WardType      @default(GENERAL)
+  floor         String?
+  genderAllowed GenderAllowed @default(ALL)
+  totalBeds     Int           @default(0)
+  isActive      Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  department    Department    @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  rooms         Room[]
+  beds          Bed[]
+
+  @@index([departmentId])
+  @@index([wardType])
+  @@map("wards")
+}
+
+enum RoomType {
+  GENERAL
+  PRIVATE
+  ISOLATION
+  ICU_BAY
+}
+
+model Room {
+  id           String    @id @default(uuid())
+  wardId       String
+  code         String    @unique // e.g. RM-101
+  name         String
+  roomType     RoomType  @default(GENERAL)
+  maxOccupancy Int       @default(1)
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  ward         Ward      @relation(fields: [wardId], references: [id], onDelete: Cascade)
+  beds         Bed[]
+
+  @@index([wardId])
+  @@map("rooms")
+}
+
+enum BedStatus {
+  AVAILABLE
+  OCCUPIED
+  CLEANING
+  RESERVED
+  MAINTENANCE
+}
+
+enum BedType {
+  STANDARD
+  ICU_VENTILATOR
+  OXYGEN_SUPPORTED
+  PEDIATRIC
+  TRAUMA_BAY
+}
+
+model Bed {
+  id        String    @id @default(uuid())
+  wardId    String
+  roomId    String
+  code      String    @unique // e.g. BED-EMR-01
+  name      String
+  bedType   BedType   @default(STANDARD)
+  status    BedStatus @default(AVAILABLE)
+  dailyRate Decimal   @default(0.00) @db.Decimal(10, 2)
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  ward      Ward      @relation(fields: [wardId], references: [id], onDelete: Restrict)
+  room      Room      @relation(fields: [roomId], references: [id], onDelete: Restrict)
+
+  @@index([wardId])
+  @@index([roomId])
+  @@index([status])
+  @@map("beds")
+}
+
+enum ServiceCategory {
+  CONSULTATION
+  NURSING
+  EMERGENCY
+  PROCEDURE
+  ICU
+  GENERAL
+}
+
+model HospitalService {
+  id           String          @id @default(uuid())
+  code         String          @unique // e.g. SRV-OPD-GEN
+  name         String
+  description  String?
+  departmentId String?
+  category     ServiceCategory @default(GENERAL)
+  isActive     Boolean         @default(true)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  department   Department?     @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  tariffs      TariffMaster[]
+
+  @@index([category])
+  @@index([departmentId])
+  @@map("hospital_services")
+}
+
+enum InvestigationCategory {
+  PATHOLOGY
+  BIOCHEMISTRY
+  MICROBIOLOGY
+  HEMATOLOGY
+  RADIOLOGY_XRAY
+  RADIOLOGY_CT
+  RADIOLOGY_MRI
+  ULTRASOUND
+  ECG
+  OTHER
+}
+
+enum SpecimenSampleType {
+  BLOOD
+  URINE
+  CSF
+  TISSUE
+  SPUTUM
+  SWAB
+  NOT_APPLICABLE
+}
+
+model InvestigationMaster {
+  id              String                @id @default(uuid())
+  code            String                @unique // e.g. INV-CBC, INV-CXR
+  name            String
+  category        InvestigationCategory @default(PATHOLOGY)
+  sampleType      SpecimenSampleType    @default(NOT_APPLICABLE)
+  departmentId    String?
+  turnaroundHours Int                   @default(24)
+  isActive        Boolean               @default(true)
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  department      Department?           @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  tariffs         TariffMaster[]
+
+  @@index([category])
+  @@index([departmentId])
+  @@map("investigations_master")
+}
+
+enum DosageForm {
+  TABLET
+  CAPSULE
+  SYRUP
+  INJECTION
+  OINTMENT
+  DROPS
+  INHALER
+  IV_FLUID
+  SUSPENSION
+}
+
+enum MedicineUnit {
+  MG
+  ML
+  GM
+  MCG
+  IU
+  PERCENT
+}
+
+model MedicineMaster {
+  id                  String       @id @default(uuid())
+  code                String       @unique // e.g. MED-PCM-500
+  genericName         String
+  brandName           String?
+  dosageForm          DosageForm   @default(TABLET)
+  strength            String       // e.g. "500"
+  unit                MedicineUnit @default(MG)
+  therapeuticCategory String?      // e.g. Analgesic, Antibiotic, Antidiabetic
+  isHighAlert         Boolean      @default(false)
+  isNarcotic          Boolean      @default(false)
+  isActive            Boolean      @default(true)
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  @@index([genericName])
+  @@index([dosageForm])
+  @@map("medicines_master")
+}
+
+enum DiagnosisCodingSystem {
+  ICD_10
+  SNOMED_CT
+  INSTITUTIONAL
+}
+
+model DiagnosisMaster {
+  id           String                @id @default(uuid())
+  code         String                @unique // e.g. E11.9, I10
+  name         String
+  codingSystem DiagnosisCodingSystem @default(ICD_10)
+  category     String?
+  isChronic    Boolean               @default(false)
+  isActive     Boolean               @default(true)
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+
+  @@index([code])
+  @@index([codingSystem])
+  @@map("diagnoses_master")
+}
+
+enum ProcedureCategory {
+  MINOR_SURGERY
+  MAJOR_SURGERY
+  ENDOSCOPY
+  CARDIAC_CATH
+  BIOPSY
+  PHYSIOTHERAPY
+  DIALYSIS
+  OTHER
+}
+
+model ProcedureMaster {
+  id                     String            @id @default(uuid())
+  code                   String            @unique // e.g. PROC-APP-01
+  name                   String
+  category               ProcedureCategory @default(OTHER)
+  departmentId           String?
+  typicalDurationMinutes Int               @default(60)
+  isActive               Boolean           @default(true)
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+
+  department             Department?       @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  tariffs                TariffMaster[]
+
+  @@index([category])
+  @@index([departmentId])
+  @@map("procedures_master")
+}
+
+enum TariffRateType {
+  STANDARD
+  PMJAY_SCHEME
+  ECHS
+  CGHS
+  CORPORATE_INSURANCE
+}
+
+model TariffMaster {
+  id              String               @id @default(uuid())
+  code            String               @unique // e.g. TRF-CBC-STD, TRF-APP-PMJAY
+  name            String
+  serviceId       String?
+  investigationId String?
+  procedureId     String?
+  rateType        TariffRateType       @default(STANDARD)
+  standardPrice   Decimal              @default(0.00) @db.Decimal(10, 2)
+  schemePrice     Decimal              @default(0.00) @db.Decimal(10, 2)
+  effectiveFrom   DateTime             @default(now())
+  effectiveTo     DateTime?
+  isActive        Boolean              @default(true)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  service         HospitalService?     @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  investigation   InvestigationMaster? @relation(fields: [investigationId], references: [id], onDelete: SetNull)
+  procedure       ProcedureMaster?     @relation(fields: [procedureId], references: [id], onDelete: SetNull)
+
+  @@index([rateType])
+  @@index([serviceId])
+  @@index([investigationId])
+  @@index([procedureId])
+  @@map("tariffs_master")
+}
+
+model InsuranceProviderMaster {
+  id            String   @id @default(uuid())
+  code          String   @unique // e.g. INS-STAR, INS-ICICI
+  name          String
+  tpaName       String?
+  contactPerson String?
+  phone         String?
+  email         String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("insurance_providers_master")
+}
+
+model GovernmentSchemeMaster {
+  id                 String   @id @default(uuid())
+  code               String   @unique // e.g. SCH-PMJAY, SCH-ECHS
+  name               String
+  nodalAgency        String   // e.g. National Health Authority (NHA)
+  coverageCap        Decimal? @db.Decimal(12, 2)
+  discountPercentage Decimal? @db.Decimal(5, 2)
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("government_schemes_master")
+}
